@@ -106,6 +106,21 @@ fn bounded_memory(reader: &Ranges<Mock>) {
 }
 
 #[test]
+fn overlapping_stream_serves_buffered_read_while_network_is_stalled() {
+    let mut reader = ranges();
+    let base = 13_237_025_569;
+    let other = base + (10 << 20);
+    read(&mut reader, base, READ).unwrap();
+    read(&mut reader, other, READ).unwrap();
+    // Extend the first stream until its look-ahead window includes other.
+    read(&mut reader, base + (2 << 20), READ).unwrap();
+    reader.bound();
+    reader.source_mut().stalled = true;
+    read(&mut reader, other, READ).unwrap();
+    assert_eq!(reader.ranges(), 2);
+}
+
+#[test]
 fn two_interleaved_sequential_readers_keep_their_two_ranges() {
     let mut reader = ranges();
     let (mut system, mut other) = (2 * GIB, 24 * GIB);

@@ -183,7 +183,16 @@ impl<S: RangeSource> Ranges<S> {
     /// The stream a read at `offset` uses: the one it continues, else a new
     /// one while fewer than [`STREAMS`] exist, else the least recently read
     /// one, restarted at `offset`.
-    fn choose(&mut self, offset: u64) -> usize {
+    fn choose(&mut self, offset: u64, until: u64) -> usize {
+        // A different stream can already contain the whole read even when
+        // the first stream is close enough to continue downloading toward it.
+        if let Some(at) = self
+            .streams
+            .iter()
+            .position(|stream| offset >= stream.start && until <= stream.end())
+        {
+            return at;
+        }
         if let Some(at) = self.streams.iter().position(|stream| stream.holds(offset)) {
             return at;
         }
@@ -377,7 +386,7 @@ impl<S: RangeSource> ReadAt for Ranges<S> {
         if self.read_segment(offset, out) {
             return Ok(());
         }
-        let at = self.choose(offset);
+        let at = self.choose(offset, until);
         self.tick += 1;
         let stream = &mut self.streams[at];
         stream.used = self.tick;

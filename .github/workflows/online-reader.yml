@@ -1,0 +1,29 @@
+name: Online installer reader test
+on:
+  push:
+    branches: [omen/online-buffered-read]
+permissions:
+  contents: read
+jobs:
+  reader:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Check original behavior
+        run: |
+          path=crates/stela-runtime/src/platform/net/ranges.rs
+          cp "$path" "$RUNNER_TEMP/fixed.rs"
+          git show 9840885:"$path" > "$path"
+          set +e
+          cargo test --locked -p stela-runtime --lib overlapping_stream_serves_buffered_read > "$RUNNER_TEMP/baseline.log" 2>&1
+          status=$?
+          set -e
+          tail -30 "$RUNNER_TEMP/baseline.log"
+          test "$status" -ne 0
+          grep -q 'test .*overlapping_stream_serves_buffered_read.* FAILED' "$RUNNER_TEMP/baseline.log"
+          cp "$RUNNER_TEMP/fixed.rs" "$path"
+      - name: Test patched reader
+        run: cargo test --locked -p stela-runtime --lib platform::net::ranges
+
